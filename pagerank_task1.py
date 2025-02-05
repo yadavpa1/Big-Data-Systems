@@ -36,15 +36,20 @@ def main():
     filtered_lines = lines.filter(validate_rows)
     edges = filtered_lines.map(parse_rows)
     
-    links = edges.distinct().groupByKey()
+    # Original Code -
+    # links = edges.distinct().groupByKey()
+
+    # TODO: reduceByKey causes less shuffling than groupByKey(). We can persist links in cache to improve performance
+    links = edges.distinct().mapValues(lambda x: [x]).reduceByKey(lambda a, b: a + b).persist()
 
     ranks = links.map(lambda url_neighbors: (url_neighbors[0], 1.0))
 
     # Run PageRank for 10 iterations
     for iteration in range(10):
         # Calculate contributions using the provided logic
+        # TODO: Using an if-else here will skip nodes with no outgoing links
         contributions = links.join(ranks).flatMap(
-            lambda x: calculate_rank(list(x[1][0]), x[1][1])
+            lambda x: calculate_rank(list(x[1][0]), x[1][1]) if x[1][0] else []
         )
 
         # Update ranks based on contributions
